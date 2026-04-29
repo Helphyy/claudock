@@ -223,7 +223,7 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
 
     return ContainerConfig(
         name=name,
-        image=opts.image or cfg.config.default_image,
+        image=cfg.images.expand(opts.image or cfg.config.default_image),
         workspace_host=workspace_host_for_pc,
         profile_name=profile.name,
         profile_claude_dir=profile.claude_dir,
