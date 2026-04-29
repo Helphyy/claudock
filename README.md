@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![License](https://img.shields.io/badge/license-GPLv3-22c55e)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.1-6366f1)](https://github.com/Helphyy/claudock/releases)
+[![Version](https://img.shields.io/badge/version-1.2.2-6366f1)](https://github.com/Helphyy/claudock/releases)
 [![Docker](https://img.shields.io/badge/docker-24+-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 [![pipx](https://img.shields.io/badge/install%20with-pipx-0ea5e9)](https://pipx.pypa.io)
 

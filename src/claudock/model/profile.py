@@ -9,7 +9,6 @@ the same profile share their auth state.
 from __future__ import annotations
 
 import re
-import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -80,8 +79,10 @@ class Profile:
         self.claude_dir.mkdir(parents=True, exist_ok=True)
 
     def remove(self) -> None:
-        if self.path.exists():
-            shutil.rmtree(self.path)
+        if not self.path.exists():
+            return
+        from claudock.utils.fs import force_rmtree
+        force_rmtree(self.path)
 
 
 def get_profile(name: str) -> Profile:
