@@ -66,7 +66,10 @@ def select_from_table(
             choices=keys,
             show_choices=False,
         )
-    except (RuntimeError, EOFError, KeyboardInterrupt):
+    except (RuntimeError, EOFError):
+        # Non-interactive context: just bail. KeyboardInterrupt is a real
+        # cancel from the user and is intentionally allowed to propagate
+        # so the caller stops every chained prompt.
         return None
 
     try:
