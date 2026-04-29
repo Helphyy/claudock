@@ -472,7 +472,7 @@ def main(argv: list[str] | None = None) -> int:
                 parser.print_help()
                 return 2
     except KeyboardInterrupt:
-        log.warn("Interrupted.")
+        log.cancelled()
         return 130
     except Exception as exc:
         show_exception(exc)

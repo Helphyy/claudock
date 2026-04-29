@@ -245,7 +245,7 @@ def cmd_start(name: str | None, opts: StartOptions) -> int:
     if interactive_mode:
         resolved = _interactive_resolve_start_name()
         if resolved is None:
-            log.warn("Cancelled.")
+            log.cancelled()
             return 1
         name = resolved
 
@@ -285,7 +285,7 @@ def cmd_start(name: str | None, opts: StartOptions) -> int:
         spec = _build_spec(name, opts, cfg)
         print_container_recap(spec)
         if not opts.yes and not prompt.confirm("Create this container now?", default=True):
-            log.warn("Creation cancelled.")
+            log.cancelled("Creation cancelled.")
             return 1
         spec.workspace_host.mkdir(parents=True, exist_ok=True)
         with status.step("Creating container..."):
@@ -615,7 +615,7 @@ def _run_disposable(name: str, opts: StartOptions, cfg: UserConfig, entrypoint_c
     spec.logs_host_dir.mkdir(parents=True, exist_ok=True)
     print_container_recap(spec)
     if not opts.yes and not prompt.confirm("Launch this disposable container?", default=True):
-        log.warn("Cancelled.")
+        log.cancelled()
         return 1
     log.info(f"Disposable container '[name]{name}[/]', removed on exit.")
 
@@ -680,7 +680,7 @@ def cmd_remove(name: str | None, force: bool) -> int:
             "The container, its installed packages and its shell history will be deleted.",
         )
         if not prompt.confirm(f"Permanently remove container '{target.name}'?", default=False):
-            log.warn("Removal cancelled.")
+            log.cancelled("Removal cancelled.")
             return 0
 
     with status.step(f"Removing '{target.name}'..."):
@@ -1111,7 +1111,7 @@ def cmd_profile_create(name: str | None) -> int:
             log.err("Name required.")
             return 2
         if not name:
-            log.warn("Cancelled.")
+            log.cancelled()
             return 1
     p = create_profile(name)
     success_panel(
@@ -1147,7 +1147,7 @@ def cmd_profile_remove(name: str | None, force: bool) -> int:
             f"Permanently remove profile '{name}' ({fmt_size(p.size_bytes)})?",
             default=False,
         ):
-            log.warn("Cancelled.")
+            log.cancelled()
             return 0
 
     remove_profile(name)

@@ -64,3 +64,9 @@ def raw(msg: str) -> None:
     if _state["quiet"]:
         return
     console.print(msg)
+
+
+def cancelled(msg: str = "Cancelled.") -> None:
+    """Discrete yellow line shown after a Ctrl+C / explicit cancel.
+    No `[!]` prefix, no panel — same UX as pvecli's `print_cancelled`."""
+    console.print(f"[warn]{msg}[/]")
