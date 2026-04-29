@@ -749,16 +749,17 @@ def cmd_install(image: str | None) -> int:
 
 
 def _split_repo_tag(image_ref: str) -> tuple[str, str]:
-    """Split 'foo/bar:tag' into ('foo/bar', 'tag'). Defaults to ':latest'."""
-    if ":" in image_ref and "/" in image_ref.rsplit(":", 1)[0]:
-        # Has registry/path:tag
-        return image_ref.rsplit(":", 1)
-    if ":" in image_ref and "/" not in image_ref:
-        # Simple 'name:tag'
-        return image_ref.rsplit(":", 1)
-    if ":" in image_ref:
-        return image_ref.rsplit(":", 1)
-    return image_ref, "latest"
+    """Split 'foo/bar:tag' into ('foo/bar', 'tag'). Defaults to ':latest'.
+
+    Handles registry-with-port refs like `localhost:5000/foo/bar` (no tag)
+    by checking that nothing after the last `:` contains a `/`."""
+    if ":" not in image_ref:
+        return image_ref, "latest"
+    head, _, tail = image_ref.rpartition(":")
+    if "/" in tail:
+        # The colon was the registry port separator, not a tag boundary
+        return image_ref, "latest"
+    return head, tail
 
 
 def _pick_variant_interactive(cfg: UserConfig, *, allow_all: bool = True) -> str | None:

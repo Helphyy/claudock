@@ -6,12 +6,26 @@ container recap (label / value).
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from rich.table import Table
 
 from claudock.console.console import console
 from claudock.console.styles import TABLE_BOX, fmt_size, status_markup, truncate_path
+
+# Env-var keys whose value is masked in the recap to avoid leaking
+# OAuth tokens, API keys, passwords, etc. on screen.
+_SECRET_KEY_RE = re.compile(
+    r"(token|secret|password|passwd|api[_-]?key|auth|credential|bearer)",
+    re.IGNORECASE,
+)
+
+
+def _mask_env_value(key: str, value: str) -> str:
+    if _SECRET_KEY_RE.search(key):
+        return "[muted]***[/]"
+    return f"[value]{value}[/]"
 
 if TYPE_CHECKING:
     from claudock.model import ClaudockContainer
@@ -103,7 +117,9 @@ def container_recap(spec: ContainerConfig) -> Table:
         ports = "\n".join(f"{p.host} → {p.container}/{p.proto}" for p in spec.extra_ports)
         add("Ports", ports)
     if spec.extra_env:
-        envs = "\n".join(f"[key]{k}[/]=[value]{v}[/]" for k, v in spec.extra_env.items())
+        envs = "\n".join(
+            f"[key]{k}[/]={_mask_env_value(k, v)}" for k, v in spec.extra_env.items()
+        )
         add("Extra env", envs)
     if spec.extra_caps:
         add("Added caps", ", ".join(spec.extra_caps))

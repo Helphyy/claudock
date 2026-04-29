@@ -15,6 +15,7 @@ Accepted schema (all keys optional):
       log: false
       x11: false
       vscode: false
+      docker: false          # mount /var/run/docker.sock (DANGER: root on host)
       git: git@github.com:user/repo.git
       ssh: true              # or "/path/to/.ssh-acme"
       caps: [SYS_PTRACE]
@@ -50,6 +51,7 @@ class ProjectConfig:
     log: bool | None = None
     x11: bool | None = None
     vscode: bool | None = None
+    docker: bool | None = None
     git: str | None = None
     ssh: bool | str | None = None
     caps: list[str] = field(default_factory=list)
@@ -70,6 +72,7 @@ class ProjectConfig:
             log=defaults.get("log"),
             x11=defaults.get("x11"),
             vscode=defaults.get("vscode"),
+            docker=defaults.get("docker"),
             git=defaults.get("git"),
             ssh=defaults.get("ssh"),
             caps=list(defaults.get("caps") or []),

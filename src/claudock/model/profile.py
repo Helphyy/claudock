@@ -75,8 +75,17 @@ class Profile:
         return datetime.fromtimestamp(mtime)
 
     def ensure(self) -> None:
-        """Create the profile directory if missing (Claude will prompt login on first use)."""
+        """Create the profile directory if missing (Claude will prompt login on first use).
+
+        Tightens permissions to 0700 since this directory holds OAuth tokens
+        and API keys; without this another local user could read them."""
+        import os
         self.claude_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(self.path, 0o700)
+            os.chmod(self.claude_dir, 0o700)
+        except OSError:
+            pass
 
     def remove(self) -> None:
         if not self.path.exists():

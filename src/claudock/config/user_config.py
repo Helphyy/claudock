@@ -193,11 +193,40 @@ def _ensure_default_layout(cfg: UserConfig) -> None:
     cfg.volumes.workspaces_path.mkdir(parents=True, exist_ok=True)
 
 
+def _tighten_perms() -> None:
+    """Tighten permissions on the local Claudock data layout, best-effort:
+    - 0700 on ~/.claudock, 0600 on config.yml
+    - 0700 on every ~/.claudock/profiles/<name> and its .claude/ subdir
+    Holds OAuth tokens and API keys, must not be world/group-readable."""
+    import os
+    try:
+        if CONFIG_ROOT.exists():
+            os.chmod(CONFIG_ROOT, 0o700)
+        if CONFIG_FILE.exists():
+            os.chmod(CONFIG_FILE, 0o600)
+        profiles_dir = CONFIG_ROOT / "profiles"
+        if profiles_dir.exists():
+            os.chmod(profiles_dir, 0o700)
+            for d in profiles_dir.iterdir():
+                if not d.is_dir():
+                    continue
+                try:
+                    os.chmod(d, 0o700)
+                    claude = d / ".claude"
+                    if claude.exists():
+                        os.chmod(claude, 0o700)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+
 def load_config() -> UserConfig:
     """Load the user config; create the default file if missing."""
     if not CONFIG_FILE.exists():
         CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
         CONFIG_FILE.write_text(DEFAULT_CONFIG_YAML, encoding="utf-8")
+        _tighten_perms()
         cfg = UserConfig()
         _ensure_default_layout(cfg)
         return cfg
@@ -205,4 +234,5 @@ def load_config() -> UserConfig:
     raw = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8")) or {}
     cfg = UserConfig.from_dict(raw)
     _ensure_default_layout(cfg)
+    _tighten_perms()
     return cfg
