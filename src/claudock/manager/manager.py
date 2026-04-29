@@ -754,11 +754,60 @@ def _split_repo_tag(image_ref: str) -> tuple[str, str]:
     return image_ref, "latest"
 
 
+def _pick_variant_interactive(cfg: UserConfig) -> str | None:
+    """Show a table of variants + 'all' and return the user's choice.
+    Returns None when stdin is not a TTY (caller will fall back to default)."""
+    import sys
+    if not sys.stdin.isatty():
+        return None
+
+    from claudock.console.selector import select_from_table
+    from claudock.console.styles import fmt_size
+
+    client = get_client()
+    local: dict[str, int] = {}
+    for img in client.images.list():
+        size = img.attrs.get("Size", 0)
+        for t in (img.tags or []):
+            local[t] = size
+
+    items = ["all", *cfg.images.variants]
+
+    def render(item: str) -> list[str]:
+        if item == "all":
+            return ["all", "[muted]pull every variant[/]", "[muted]-[/]", "[muted]-[/]"]
+        full_ref = cfg.images.expand(item)
+        size = local.get(full_ref)
+        status = "[ok]✓ local[/]" if size is not None else "[muted]not local[/]"
+        size_s = fmt_size(size) if size is not None else "[muted]-[/]"
+        return [item, full_ref, status, size_s]
+
+    return select_from_table(
+        items,
+        title="Pick an image to install",
+        columns=["Variant", "Reference", "Status", "Size"],
+        render_row=render,
+        object_label="image",
+        auto_single=False,
+    )
+
+
 def cmd_image_install(image: str | None) -> int:
     """Pull an image from the registry. Accepts a known variant name
-    (e.g. `dev`), a `claudock-<variant>` shortname, or a full image ref."""
+    (e.g. `dev`), a `claudock-<variant>` shortname, or a full image ref.
+    Without an argument, an interactive selector lists every variant plus
+    an `all` shortcut; non-TTY callers fall back to `config.default_image`."""
     cfg = load_config()
-    raw = image if image is not None else cfg.config.default_image
+    if image is None:
+        choice = _pick_variant_interactive(cfg)
+        if choice is None:
+            raw = cfg.config.default_image
+        elif choice == "all":
+            return cmd_image_install_all()
+        else:
+            raw = choice
+    else:
+        raw = image
     target = cfg.images.expand(raw)
     repo, tag = _split_repo_tag(target)
 
