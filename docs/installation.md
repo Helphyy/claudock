@@ -49,7 +49,7 @@ pipx uninstall claudock
 ## Verify
 
 ```bash
-claudock --version
+claudock --version    # or: claudock version
 claudock              # opens the dashboard
 ```
 

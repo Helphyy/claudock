@@ -53,11 +53,15 @@ def confirm(question: str, *, default: bool = False) -> bool:
 
 
 def acknowledge(message: str) -> None:
-    """Print a message and wait for ENTER. No-op if non-interactive."""
+    """Print a message and wait for ENTER. No-op if non-interactive.
+
+    Ctrl+C re-raises so the top-level handler renders the discreet
+    `Cancelled.` line, instead of silently moving on as if the user
+    had confirmed."""
     if not _is_interactive():
         console.print(f"[accent]\\[>][/] {message}")
         return
     try:
         console.input(f"[accent]\\[>][/] {message} [muted](press ENTER to continue)[/] ")
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
         pass

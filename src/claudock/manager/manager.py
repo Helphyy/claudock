@@ -95,6 +95,43 @@ def _resolve_workspace(opts: StartOptions, name: str, cfg: UserConfig) -> Path:
     return cfg.volumes.workspaces_path / name
 
 
+_SENSITIVE_HOST_PREFIXES = (
+    "/etc",
+    "/root",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/boot",
+    "/var/run",
+)
+
+
+def _resolve_volume_host(spec: str) -> str:
+    """Normalize the host side of a `host:container[:mode]` volume spec
+    so `..`-style traversal surfaces as an absolute path. The spec keeps
+    its container path and mode untouched."""
+    parts = spec.split(":")
+    if len(parts) < 2:
+        return spec  # let VolumeMount.parse raise a clean error later
+    parts[0] = str(Path(parts[0]).expanduser().resolve())
+    return ":".join(parts)
+
+
+def _warn_sensitive_mounts(specs: list[str]) -> None:
+    """Print a warn line when a user volume points to a known-sensitive
+    host directory (etc, root, proc, sys, dev, boot, var/run). The mount
+    still proceeds; this is a heads-up, not a refusal."""
+    for spec in specs:
+        host = spec.split(":", 1)[0]
+        for prefix in _SENSITIVE_HOST_PREFIXES:
+            if host == prefix or host.startswith(prefix + "/"):
+                log.warn(
+                    f"Mounting host path [path]{host}[/] inside the container, "
+                    "this exposes sensitive files. Make sure you trust the workload."
+                )
+                break
+
+
 def _parse_env(items: list[str]) -> dict[str, str]:
     env: dict[str, str] = {}
     for item in items:
@@ -174,8 +211,14 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
     logs_host = LOGS_DIR / name
     logs_host.mkdir(parents=True, exist_ok=True)
 
+    # User-provided volumes: resolve the host part so a `-v ../../etc:/c:ro`
+    # surfaces as `/etc:/c:ro` and the user sees what they are actually
+    # mounting. Internal mounts added below (X11, docker.sock, ssh) are
+    # already constructed with absolute paths.
+    extra_volumes_specs = [_resolve_volume_host(v) for v in opts.volumes]
+    _warn_sensitive_mounts(extra_volumes_specs)
+
     # X11 forwarding: mount the socket + forward DISPLAY + (optional) xauth.
-    extra_volumes_specs = list(opts.volumes)
     if opts.x11:
         extra_volumes_specs.append("/tmp/.X11-unix:/tmp/.X11-unix:rw")
         display = os.environ.get("DISPLAY")
@@ -340,8 +383,11 @@ def _git_clone_into_workspace(container: ClaudockContainer, url: str) -> None:
         log.warn(f"/workspace not empty, cloning into {target}")
 
     log.info(f"git clone [value]{url}[/] → [path]{target}[/]")
+    # exec_run with a list (no shell) defeats injection through `url`
+    # (semicolons, backticks, $(...), etc.). stderr is folded into stdout
+    # by docker SDK by default.
     res = container.raw.exec_run(
-        ["sh", "-c", f"git clone --recurse-submodules {url} {target} 2>&1"],
+        ["git", "clone", "--recurse-submodules", url, target],
     )
     if res.exit_code == 0:
         log.success(f"Repo cloned into [path]{target}[/]")
@@ -399,7 +445,8 @@ def _build_claude_cmd(opts: StartOptions, base: list[str] | None = None) -> list
         cmd.append("--dangerously-skip-permissions")
     if opts.effort:
         cmd.extend(["--effort", opts.effort])
-    for d in opts.add_dirs:
+    # Resolve --add-dir host paths so traversal surfaces explicitly.
+    for d in (str(Path(d).expanduser().resolve()) for d in opts.add_dirs):
         cmd.extend(["--add-dir", d])
     if opts.ide:
         cmd.append("--ide")

@@ -44,6 +44,10 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="claudock",
         description="Secure containerized wrapper for Claude Code, with named persistent containers.",
     )
+    parser.add_argument(
+        "--version", action="version", version=f"claudock v{__version__}",
+        help="Print the claudock version and exit (alias of `claudock version`).",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-d", "--debug", action="store_true", help="Debug output (implies --verbose)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output")
