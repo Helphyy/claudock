@@ -14,6 +14,8 @@ from rich_argparse import RichHelpFormatter
 
 from claudock import __version__
 from claudock.console import log, show_exception
+from claudock.manager import manager
+from claudock.manager.manager import StartOptions
 
 # Color the --help output via rich-argparse (palette aligned with our theme).
 RichHelpFormatter.styles["argparse.prog"] = "bold bright_cyan"
@@ -33,9 +35,6 @@ class ColoredParser(argparse.ArgumentParser):
         kwargs.setdefault("formatter_class", RichHelpFormatter)
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
-
-from claudock.manager import manager
-from claudock.manager.manager import StartOptions
 
 SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
