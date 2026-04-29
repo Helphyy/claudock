@@ -264,7 +264,8 @@ def cmd_start(name: str | None, opts: StartOptions) -> int:
         # Conversation menu (existing container, TTY, no --shell, no -y)
         entrypoint_cmd = _pick_existing_action(container, opts, cfg)
     except ContainerNotFoundError:
-        if interactive_mode:
+        import sys
+        if sys.stdin.isatty() and not opts.yes:
             opts = _interactive_augment_opts(opts, cfg)
         if opts.x11:
             warn_panel(
@@ -504,6 +505,12 @@ def _interactive_augment_opts(opts: StartOptions, cfg: UserConfig) -> StartOptio
     Skip what was already passed via flag. When the user just presses Enter,
     fall back on the global config defaults.
     """
+    # 0. Image (variant selector reused from `claudock image install`)
+    if opts.image is None:
+        chosen = _pick_variant_interactive(cfg, allow_all=False)
+        if chosen:
+            opts.image = chosen
+
     # 1. Workspace
     if not opts.use_cwd and not opts.path:
         choice = prompt.ask(
@@ -754,9 +761,10 @@ def _split_repo_tag(image_ref: str) -> tuple[str, str]:
     return image_ref, "latest"
 
 
-def _pick_variant_interactive(cfg: UserConfig) -> str | None:
-    """Show a table of variants + 'all' and return the user's choice.
-    Returns None when stdin is not a TTY (caller will fall back to default)."""
+def _pick_variant_interactive(cfg: UserConfig, *, allow_all: bool = True) -> str | None:
+    """Show a table of variants (optionally with an 'all' shortcut) and return
+    the user's choice. Returns None when stdin is not a TTY (caller will fall
+    back to default)."""
     import sys
     if not sys.stdin.isatty():
         return None
@@ -771,7 +779,7 @@ def _pick_variant_interactive(cfg: UserConfig) -> str | None:
         for t in (img.tags or []):
             local[t] = size
 
-    items = ["all", *cfg.images.variants]
+    items = ["all", *cfg.images.variants] if allow_all else list(cfg.images.variants)
 
     def render(item: str) -> list[str]:
         if item == "all":
