@@ -342,7 +342,8 @@ def _print_dashboard() -> None:
     console.print("[hint]Main commands:[/]")
     console.print(
         "  [kbd] start [/]  [kbd] stop [/]  [kbd] restart [/]  "
-        "[kbd] exec [/]  [kbd] info [/]  [kbd] remove [/]  [kbd] profile [/]"
+        "[kbd] exec [/]  [kbd] info [/]  [kbd] remove [/]  "
+        "[kbd] image [/]  [kbd] logs [/]  [kbd] profile [/]  [kbd] config [/]"
     )
     console.print("[hint]Per-verb help:[/] claudock <verb> --help")
 
@@ -350,7 +351,7 @@ def _print_dashboard() -> None:
 def main(argv: list[str] | None = None) -> int:
     raw = list(argv) if argv is not None else sys.argv[1:]
     parser = _build_parser()
-    argcomplete.autocomplete(parser)
+    argcomplete.autocomplete(parser, always_complete_options=False)
 
     if raw and raw[0] == "exec":
         if len(raw) < 3:
