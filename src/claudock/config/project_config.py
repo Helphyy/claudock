@@ -18,6 +18,7 @@ Accepted schema (all keys optional):
       git: git@github.com:user/repo.git
       ssh: true              # or "/path/to/.ssh-acme"
       caps: [SYS_PTRACE]
+      effort: max            # low | medium | high | max
       env:
         HTTP_PROXY: http://proxy:3128
       volumes:
@@ -55,6 +56,7 @@ class ProjectConfig:
     env: dict[str, str] = field(default_factory=dict)
     volumes: list[str] = field(default_factory=list)
     ports: list[str] = field(default_factory=list)
+    effort: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> ProjectConfig:
@@ -74,6 +76,7 @@ class ProjectConfig:
             env=dict(defaults.get("env") or {}),
             volumes=[str(v) for v in (defaults.get("volumes") or [])],
             ports=[str(p) for p in (defaults.get("ports") or [])],
+            effort=defaults.get("effort"),
         )
 
 

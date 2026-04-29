@@ -53,6 +53,10 @@ config:
   # Auto-check for image updates at startup (not implemented in v0).
   auto_check_update: false
 
+  # Default reasoning effort passed to Claude Code (low/medium/high/max).
+  # Override per-run with --effort.
+  default_effort: max
+
 network:
   # Docker network mode (bridge, host, none) (override: --network).
   mode: bridge
@@ -89,6 +93,7 @@ class GeneralConfig:
     default_caps: list[str] = field(default_factory=list)
     default_env: dict[str, str] = field(default_factory=dict)
     auto_check_update: bool = False
+    default_effort: str = "max"
 
 
 @dataclass
@@ -171,6 +176,7 @@ class UserConfig:
                 default_caps=list(c.get("default_caps") or []),
                 default_env=dict(c.get("default_env") or {}),
                 auto_check_update=bool(c.get("auto_check_update", False)),
+                default_effort=str(c.get("default_effort", "max")),
             ),
             network=NetworkConfig(mode=n.get("mode", "bridge")),
             ui=UiConfig(banner=bool(u.get("banner", True))),

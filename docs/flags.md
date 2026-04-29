@@ -91,7 +91,8 @@ These flags are forwarded to the `claude` invocation that runs on attach. Ignore
 
 | Flag | Default | Effect |
 |------|---------|--------|
-| `--dangerously-skip-permissions` | off | No per-tool permission prompts inside Claude. Safe only because /workspace is the container's isolation boundary. |
+| `--dangerously-skip-permissions`, `--yolo` | off | No per-tool permission prompts inside Claude. Safe only because /workspace is the container's isolation boundary. `--yolo` is the short alias. |
+| `--effort {low,medium,high,max}` | from `config.default_effort` (max) | Reasoning effort level forwarded to Claude. Default comes from `~/.claudock/config.yml` or `.claudock.yml`. |
 | `-c`, `--continue` | off | Continue Claude's most recent conversation. Skips the in-container picker. |
 | `-r`, `--resume ID` | none | Resume a specific Claude session by ID. Skips the picker. |
 | `--model NAME` | from Claude config | Pick the model: `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`, etc. |

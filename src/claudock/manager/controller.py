@@ -138,9 +138,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Mount the host Docker socket (DooD). DANGEROUS: gives effective root on the host. Only use on trusted code.",
     )
     p_start.add_argument(
-        "--dangerously-skip-permissions", action="store_true",
+        "--dangerously-skip-permissions", "--yolo", action="store_true",
         dest="dangerously_skip_permissions",
-        help="Pass --dangerously-skip-permissions to Claude Code on launch (no per-tool prompts). Only safe inside the container's isolated /workspace.",
+        help="Pass --dangerously-skip-permissions to Claude Code on launch (alias: --yolo). No per-tool prompts. Only safe inside the container's isolated /workspace.",
     )
     p_start.add_argument(
         "-c", "--continue", action="store_true", dest="continue_last",
@@ -170,6 +170,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_start.add_argument(
         "--ide", action="store_true",
         help="Tell Claude to connect to the IDE (paired with --vscode for code-server integration).",
+    )
+    p_start.add_argument(
+        "--effort", choices=["low", "medium", "high", "max"], default=None,
+        help="Reasoning effort level passed to Claude Code (low/medium/high/max). Default: config.default_effort (max).",
     )
 
     p_stop = sub.add_parser("stop", help="Stop a container (selector if no name)")
@@ -413,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
                     print_prompt=args.print_prompt,
                     add_dirs=args.add_dirs,
                     ide=args.ide,
+                    effort=args.effort,
                 )
                 return manager.cmd_start(args.name, opts)
             case "stop":

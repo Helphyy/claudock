@@ -84,6 +84,7 @@ class StartOptions:
     print_prompt: str | None = None
     add_dirs: list[str] = field(default_factory=list)
     ide: bool = False
+    effort: str | None = None
 
 
 def _resolve_workspace(opts: StartOptions, name: str, cfg: UserConfig) -> Path:
@@ -148,6 +149,8 @@ def _apply_project_config(opts: StartOptions, workspace_host: Path) -> StartOpti
         opts.volumes = [*opts.volumes, *pc.volumes]
     if pc.ports:
         opts.ports = [*opts.ports, *pc.ports]
+    if opts.effort is None and pc.effort:
+        opts.effort = pc.effort
     return opts
 
 
@@ -155,6 +158,8 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
     # Apply project .claudock.yml if present
     workspace_host_for_pc = _resolve_workspace(opts, name, cfg)
     opts = _apply_project_config(opts, workspace_host_for_pc)
+    if opts.effort is None:
+        opts.effort = cfg.config.default_effort
 
     profile = get_or_create_profile(opts.profile or cfg.config.default_profile)
     # Merge config defaults with CLI overrides; CLI wins on env conflicts.
@@ -391,6 +396,8 @@ def _build_claude_cmd(opts: StartOptions, base: list[str] | None = None) -> list
         cmd.extend(["--permission-mode", opts.permission_mode])
     if opts.dangerously_skip_permissions:
         cmd.append("--dangerously-skip-permissions")
+    if opts.effort:
+        cmd.extend(["--effort", opts.effort])
     for d in opts.add_dirs:
         cmd.extend(["--add-dir", d])
     if opts.ide:
