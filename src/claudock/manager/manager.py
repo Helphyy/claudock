@@ -758,10 +758,8 @@ def cmd_image_install(image: str | None) -> int:
     """Pull an image from the registry. Accepts a known variant name
     (e.g. `dev`), a `claudock-<variant>` shortname, or a full image ref."""
     cfg = load_config()
-    if image is None:
-        target = cfg.config.default_image
-    else:
-        target = cfg.images.expand(image)
+    raw = image if image is not None else cfg.config.default_image
+    target = cfg.images.expand(raw)
     repo, tag = _split_repo_tag(target)
 
     client = get_client()
