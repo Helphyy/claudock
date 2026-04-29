@@ -1,10 +1,15 @@
+# PYTHON_ARGCOMPLETE_OK
 """CLI entrypoint: parses args and dispatches to the manager."""
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
 
+import argcomplete
+from argcomplete.shell_integration import shellcode as _shellcode
 from rich_argparse import RichHelpFormatter
 
 from claudock import __version__
@@ -32,6 +37,8 @@ class ColoredParser(argparse.ArgumentParser):
 from claudock.manager import manager
 from claudock.manager.manager import StartOptions
 
+SUPPORTED_SHELLS = ("bash", "zsh", "fish")
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = ColoredParser(
@@ -42,6 +49,24 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-d", "--debug", action="store_true", help="Debug output (implies --verbose)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output")
     parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm prompts")
+    parser.add_argument(
+        "--install-completion",
+        nargs="?",
+        const="auto",
+        default=None,
+        metavar="SHELL",
+        dest="install_completion",
+        help="Install shell completion (bash, zsh, fish). Auto-detects $SHELL if omitted.",
+    )
+    parser.add_argument(
+        "--show-completion",
+        nargs="?",
+        const="auto",
+        default=None,
+        metavar="SHELL",
+        dest="show_completion",
+        help="Print the shell completion script (bash, zsh, fish) without installing it.",
+    )
 
     sub = parser.add_subparsers(
         dest="command", metavar="VERB", required=False, parser_class=ColoredParser,
@@ -213,6 +238,82 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _detect_shell() -> str | None:
+    shell_env = os.environ.get("SHELL", "")
+    base = os.path.basename(shell_env)
+    for s in SUPPORTED_SHELLS:
+        if s in base:
+            return s
+    return None
+
+
+def _resolve_shell(value: str | None) -> str | None:
+    if value in (None, "auto"):
+        return _detect_shell()
+    if value in SUPPORTED_SHELLS:
+        return value
+    return None
+
+
+def _completion_paths(shell: str) -> tuple[Path, Path]:
+    """Return (script_path, rc_path) for a given shell."""
+    home = Path.home()
+    completion_dir = home / ".claudock" / "completion"
+    script = completion_dir / f"claudock.{shell}"
+    rc = {
+        "bash": home / ".bashrc",
+        "zsh": home / ".zshrc",
+        "fish": home / ".config" / "fish" / "completions" / "claudock.fish",
+    }[shell]
+    return script, rc
+
+
+def _install_completion(value: str | None) -> int:
+    from claudock.console import console
+
+    shell = _resolve_shell(value)
+    if shell is None:
+        log.err("Could not detect shell. Pass one of: bash, zsh, fish.")
+        return 2
+
+    code = _shellcode(["claudock"], shell=shell)  # type: ignore[no-untyped-call]
+    script, rc = _completion_paths(shell)
+
+    if shell == "fish":
+        rc.parent.mkdir(parents=True, exist_ok=True)
+        rc.write_text(code)
+        log.success(f"Completion installed for fish at {rc}")
+        console.print("Open a new fish shell to enable.")
+        return 0
+
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(code)
+
+    source_line = f'[ -f "{script}" ] && source "{script}"'
+    marker = "# claudock shell completion"
+    rc_text = rc.read_text() if rc.exists() else ""
+
+    if marker in rc_text:
+        log.info(f"Completion already registered in {rc}")
+    else:
+        with rc.open("a") as f:
+            f.write(f"\n{marker}\n{source_line}\n")
+        log.success(f"Completion installed for {shell}")
+        console.print(f"  script:   [kbd] {script} [/]")
+        console.print(f"  rc entry: [kbd] {rc} [/]")
+        console.print(f"Run [kbd] source {rc} [/] (or open a new shell) to enable.")
+    return 0
+
+
+def _show_completion(value: str | None) -> int:
+    shell = _resolve_shell(value)
+    if shell is None:
+        log.err("Could not detect shell. Pass one of: bash, zsh, fish.")
+        return 2
+    sys.stdout.write(_shellcode(["claudock"], shell=shell))  # type: ignore[no-untyped-call]
+    return 0
+
+
 def _print_dashboard() -> None:
     """Default render when `claudock` is called without a verb."""
     from claudock.console import console, print_banner
@@ -250,6 +351,7 @@ def _print_dashboard() -> None:
 def main(argv: list[str] | None = None) -> int:
     raw = list(argv) if argv is not None else sys.argv[1:]
     parser = _build_parser()
+    argcomplete.autocomplete(parser)
 
     if raw and raw[0] == "exec":
         if len(raw) < 3:
@@ -268,6 +370,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(raw)
 
     log.set_verbosity(verbose=args.verbose, debug=args.debug, quiet=args.quiet)
+
+    if args.install_completion is not None:
+        return _install_completion(args.install_completion)
+    if args.show_completion is not None:
+        return _show_completion(args.show_completion)
 
     if args.command is None:
         _print_dashboard()

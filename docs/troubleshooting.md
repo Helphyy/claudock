@@ -82,7 +82,7 @@ rm -rf ~/.claudock
 
 ## Where do I file bugs?
 
-GitHub issues: <https://github.com/helphyy/claudock/issues>. Include:
+GitHub issues: <https://github.com/Helphyy/claudock/issues>. Include:
 
 - `claudock --version`
 - `docker version`

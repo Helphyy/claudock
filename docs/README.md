@@ -29,4 +29,4 @@ User-facing documentation for the Claudock CLI (the Python wrapper).
 
 ## Where to ask questions
 
-GitHub issues: <https://github.com/helphyy/claudock/issues>
+GitHub issues: <https://github.com/Helphyy/claudock/issues>

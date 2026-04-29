@@ -1,86 +1,108 @@
-# claudock
+<div align="center">
 
-A secure containerized wrapper for [Claude Code](https://docs.claude.com/en/docs/claude-code).
+<img src="assets/demo.png" alt="claudock demo" width="800"/>
 
-Spins up Claude Code inside named, persistent Docker containers (one per project) where workspace, shell history, installed packages and Claude credentials are all preserved between sessions.
+**A secure, containerized wrapper for Claude Code**
 
-## Status
+[![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![License](https://img.shields.io/badge/license-GPLv3-22c55e)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.2.0-6366f1)](https://github.com/Helphyy/claudock/releases)
+[![Docker](https://img.shields.io/badge/docker-24+-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
+[![pipx](https://img.shields.io/badge/install%20with-pipx-0ea5e9)](https://pipx.pypa.io)
 
-Alpha, in active development.
+[Installation](#installation) · [Quick Start](#quick-start) · [Commands](docs/commands.md) · [Images](docs/images.md) · [Profiles](docs/profiles.md)
+
+</div>
+
+---
+
+## Features
+
+- 📦 **Named, persistent containers** , one per project, state survives across sessions (shell history, ad-hoc installs, Claude conversations)
+- 🔐 **Multi-profile Claude auth** , isolate `personal` / `work` / `client` OAuth logins, switch with `--profile`
+- 🖼 **Seven layered images** , `minimal`, `dev`, `cloud`, `security`, `data`, `doc`, `full` (all ship Claude Code, code-server, zsh, asciinema, headed browsers)
+- 🛡 **Sandboxed by default** , no Docker socket, no `--privileged`, `no-new-privileges`, default Docker capabilities only
+- 🌐 **VSCode in browser** , code-server with the official `Anthropic.claude-code` extension, exposed on `127.0.0.1:8080`
+- 🎬 **Session recording** , optional asciinema capture for audit and replay
+- 🖥 **X11 forwarding** , run headed Chromium / Firefox / Playwright inside the container on your host display
+- ⚙️ **Project config** , `.claudock.yml` bakes in defaults so `claudock start` stays short
+- ⚡ **Claude flag pass-through** , `--model`, `--continue`, `--resume`, `--print`, `--permission-mode`, `--add-dir`, `--ide`
+
+---
 
 ## Installation
 
-```bash
-pipx install git+https://github.com/helphyy/claudock.git
-```
-
-Then pull at least one image:
+Requires **Python 3.11+**, **Docker 24+**, and [pipx](https://pipx.pypa.io/).
 
 ```bash
-claudock image install dev    # or any of: minimal, dev, cloud, security, data, doc, full
+pipx install git+https://github.com/Helphyy/claudock.git
 ```
 
-See [docs/installation.md](docs/installation.md) for requirements (Python 3.11+, Docker 24+) and alternative install methods.
+To upgrade:
 
-## Concepts
-
-- **Named, persistent containers**: `claudock start my-project` creates (or restarts) a named container that survives across sessions. Your shell history, ad-hoc installs and Claude auth are all there next time.
-- **Multi-profile Claude auth**: `~/.claudock/profiles/<name>/.claude/` is bind-mounted at `/root/.claude/`. Each profile is one credentials store (one OAuth login, one subscription). Multiple containers using the same profile share the auth state; different profiles are fully isolated.
-- **Seven layered images**: `minimal`, `dev`, `cloud`, `security`, `data`, `doc`, `full`. All ship Claude Code (native binary), code-server with the official `Anthropic.claude-code` extension, zsh + plugins, asciinema, Firefox + Chromium. See [docs/images.md](docs/images.md).
-- **Security**: Docker's default capabilities, `no-new-privileges`, no Docker socket by default, never `--privileged`.
-
-## CLI verbs
-
-```
-claudock                                 Dashboard (banner + tables + cheatsheet)
-claudock start [name] [path] [options]   Create / start / attach a container
-claudock stop [name]                     Stop (selector if no name)
-claudock restart [name]
-claudock exec <name> <cmd...>            Run a command inside a container
-claudock info                            List Claudock containers
-claudock remove [name]                   Remove a container (selector)
-claudock install [image]                 Pull a Docker image
-claudock logs [name]                     List recorded sessions
-claudock profile list                    List Claude auth profiles
-claudock profile create [name]           Create an empty profile
-claudock profile show [name]             Profile details (selector)
-claudock profile remove [name] [-f]      Remove a profile (selector)
-claudock config show                     Show the resolved config
-claudock config path                     Show the config file path
-claudock config edit                     Open the config in $EDITOR
-claudock version
+```bash
+pipx upgrade claudock
 ```
 
-### `start` options
+See [docs/installation.md](docs/installation.md) for alternative install methods (clone + editable, dev deps).
 
-```
---cwd                       Use the current cwd as /workspace
---image IMAGE               Override the default image
--s, --shell SHELL           Launch a shell instead of claude (bash, zsh)
---network MODE              bridge, host, none, or a Docker network name
---hostname NAME             Custom hostname (default: container name)
---profile NAME              Claude auth profile (default: config default_profile)
--e, --env KEY=VAL           Inject env var (repeatable)
--V, --volume H:C[:MODE]     Extra mount (repeatable)
--p, --port HOST:CONT[/PROTO] Expose a port (repeatable)
---cap CAP_NAME              Add a Linux capability (repeatable)
---tmp                       Disposable container, removed on exit
---log                       Record the shell session (asciinema)
---x11                       Share the host X server (GUI / headed browsers)
---no-update-fs              Skip the chgrp/setgid on /workspace
---vscode                    Start code-server (FOSS VSCode) at startup
---vscode-port PORT          Host port for code-server (default 8080, 127.0.0.1)
--g, --git URL               Clone a git URL into /workspace (auto-enables --ssh)
---ssh [DIR]                 Forward an SSH directory (default ~/.ssh) + ~/.gitconfig + SSH_AUTH_SOCK
---docker                    DANGEROUS: bind /var/run/docker.sock (DooD). Gives root on host.
+---
+
+## Quick Start
+
+**1.** Pull at least one image:
+
+```bash
+claudock image install dev    # or: minimal, cloud, security, data, doc, full
 ```
 
-> ⚠ `--docker` mounts the host Docker socket so the container can spawn sibling
-> containers via the host's daemon. **Anything inside (Claude included) gets
-> effective root on your host** (`docker run -v /:/host` and game over). Use
-> only with code you fully trust. Same threat tier as `--privileged`.
+**2.** Create a Claude auth profile:
 
-### Examples
+```bash
+claudock profile create personal
+```
+
+**3.** Start a container on a project:
+
+```bash
+cd ~/code/my-project
+claudock start my-project --cwd
+```
+
+This creates `claudock-my-project`, mounts the cwd at `/workspace`, mounts the profile's `.claude/` at `/root/.claude`, and drops you into a zsh shell.
+
+**4.** Run Claude inside the container:
+
+```bash
+claude
+```
+
+The first run opens the OAuth flow in your browser; tokens are persisted to the host profile.
+
+> Re-attach later with the same `claudock start my-project` command, all your state is preserved.
+
+---
+
+## Command Groups
+
+| Group | Description |
+|:------|:------------|
+| `claudock` | Dashboard (banner, container table, profile table, cheatsheet) |
+| `claudock start` | Create / start / attach a named container, with 25+ flags |
+| `claudock stop` / `restart` / `remove` | Container lifecycle, with interactive selectors |
+| `claudock exec` | Run a one-off command inside a container |
+| `claudock info` | Tabular view of every Claudock container |
+| `claudock logs` | List asciinema recordings of a container |
+| `claudock image` | Image management (list, install, install-all, update, remove, build) |
+| `claudock profile` | Claude auth profile management (list, create, show, remove) |
+| `claudock config` | Resolved config viewer / path / editor |
+| `claudock version` | Print the CLI version |
+
+→ **[Full command reference](docs/commands.md)** · **[Start flags](docs/flags.md)**
+
+---
+
+## Examples
 
 ```bash
 # Persistent container named "monrepo" on the current cwd
@@ -89,57 +111,53 @@ claudock start monrepo --cwd
 # Disposable container with an API key and one exposed port
 claudock start review --tmp -e ANTHROPIC_API_KEY=sk-... -p 3000:3000
 
-# Container with a shared pnpm cache and SYS_PTRACE for gdb/strace
+# Shared pnpm cache + SYS_PTRACE for gdb/strace
 claudock start backend --cwd -V ~/.cache/pnpm:/root/.cache/pnpm --cap SYS_PTRACE
 
 # Host networking to debug a local service
 claudock start hostnet --cwd --network host
 
 # Separate perso / pro profiles
-claudock profile create perso
-claudock profile create pro
 claudock start side-project --cwd --profile perso
-claudock start app-client --cwd --profile pro
+claudock start app-client    --cwd --profile pro
 
-# Record a session for audit/replay
+# Record the session for audit / replay
 claudock start audit --cwd --log
-claudock logs audit
 asciinema play ~/.claudock/logs/audit/<timestamp>.cast
 
-# Clone a repo + forward your ssh-agent at start
-claudock start my-project --git git@github.com:user/repo.git
-# Repo cloned into /workspace, ~/.ssh + ~/.gitconfig mounted ro,
-# SSH_AUTH_SOCK forwarded → push/pull works with your host key.
+# Clone a repo + forward the host ssh-agent on creation
+claudock start my-fork --git git@github.com:user/repo.git
 
-# VSCode in the browser (code-server, 27 extensions including Claude Code)
+# VSCode in the browser (code-server + Claude Code extension)
 claudock start my-project --cwd --vscode
 
-# GUI / headed browser (Playwright, Chromium...) via X11
-xhost +local:                       # once on the host
+# Headed Chromium / Firefox via X11
+xhost +local:
 claudock start gui --cwd --x11
-# Inside the container:
-apt-get update && apt-get install -y chromium
-chromium                            # renders on your host display
+
+# Resume the last Claude conversation, pin the model
+claudock start my-app --cwd -c --model claude-opus-4-7
+
+# Non-interactive run (CI / scripts)
+claudock start audit --cwd --permission-mode plan \
+  --add-dir /etc/configs --print "Audit /workspace and report"
 ```
 
-## Project config: `.claudock.yml`
+---
 
-If a `.claudock.yml` file exists at the root of the workspace passed to
-`start`, its defaults are merged on top of the global config (CLI flags still
-win). Schema:
+## Project Config
+
+Drop a `.claudock.yml` at the root of your workdir to bake in defaults:
 
 ```yaml
 defaults:
-  image: claudock-base:dev
+  image: claudock-dev:latest
   profile: pro
-  network: bridge        # bridge | host | none | <docker-net>
-  shell: zsh             # empty = launch claude directly
-  hostname: my-box
-  log: false
-  x11: false
+  network: bridge
+  shell: zsh
   vscode: false
-  git: git@github.com:user/repo.git
-  ssh: true              # or "/path/to/.ssh-acme"
+  log: false
+  ssh: true
   caps: [SYS_PTRACE]
   env:
     HTTP_PROXY: http://proxy:3128
@@ -149,45 +167,72 @@ defaults:
     - "3000:3000"
 ```
 
-Final resolution: CLI flag > `.claudock.yml` > `~/.claudock/config.yml` > built-in.
+Resolution order: **CLI flag > `.claudock.yml` > `~/.claudock/config.yml` > built-in**.
 
-## FS permissions (host ↔ container)
+→ **[Full project-config reference](docs/project-config.md)**
 
-When a container is created the wrapper runs:
-- `chgrp <host_gid> /workspace` (workspace group is your host group)
-- `chmod g+rwXs /workspace` (setgid → new files inherit the group)
-- `umask 002` is forced in every exec and in `/etc/profile.d` (default mode 0664)
+---
 
-End result: a file created by root inside the container shows up as
-`root:<host_gid> 0664`, so your host user can read/write through the group.
-`--no-update-fs` skips this behaviour.
-
-## Documentation
-
-Full user guide under [`docs/`](docs/README.md):
-
-- [Installation](docs/installation.md), [Quickstart](docs/quickstart.md)
-- [Commands reference](docs/commands.md), [Start flags](docs/flags.md)
-- [Profiles](docs/profiles.md), [Images](docs/images.md), [Project config](docs/project-config.md)
-- [Filesystem](docs/filesystem.md), [Networking](docs/networking.md)
-- [Troubleshooting](docs/troubleshooting.md)
-
-## Local development
+## Shell Completion
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-claudock --help
+claudock --install-completion bash && source ~/.bashrc   # Bash
+claudock --install-completion zsh  && source ~/.zshrc    # Zsh
+claudock --install-completion fish                        # Fish
 ```
+
+Auto-detect from `$SHELL`:
+
+```bash
+claudock --install-completion
+```
+
+Print the completion script without installing it (pipe it wherever you want):
+
+```bash
+claudock --show-completion bash > /etc/bash_completion.d/claudock
+```
+
+Powered by [argcomplete](https://kislyuk.github.io/argcomplete/), so every verb, sub-action and flag (including the long `start` flag list) is completed.
+
+---
+
+## Security
+
+- Default Docker capabilities only, `no-new-privileges`, no `--privileged`
+- Docker socket **never** mounted by default (`--docker` opts in, with a warning panel because it grants effective root on the host)
+- Profiles stored under `~/.claudock/profiles/<name>/` with `0700` permissions
+- `/workspace` ownership rewritten to your host group with setgid + `umask 002`, so files created by container root are still rw for your host user, no `sudo` round-trips
+- `--x11` forwards your real X server, only enable on code you trust
+
+→ **[Filesystem](docs/filesystem.md)** · **[Networking](docs/networking.md)**
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/Helphyy/claudock.git
+cd claudock
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+```bash
+ruff format .         # Format
+ruff check .          # Lint
+mypy src/claudock     # Type check
+pytest                # Test
+```
+
+---
 
 ## Acknowledgements
 
-Heavily inspired by [Exegol](https://github.com/ThePorgs/Exegol), the
-containerized offensive security environment. Claudock borrows its core ideas
-(named persistent containers, profile-based credential mounts, image-management
-CLI) and adapts them to running Claude Code safely on any project.
+Heavily inspired by [Exegol](https://github.com/ThePorgs/Exegol), the containerized offensive-security environment. Claudock borrows its core ideas (named persistent containers, profile-based credential mounts, image-management CLI) and adapts them to running Claude Code safely on any project.
+
+---
 
 ## License
 
-GPLv3
+GPLv3, see [LICENSE](LICENSE).

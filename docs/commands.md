@@ -10,6 +10,8 @@
 | `-d`, `--debug` | Debug output (implies `--verbose`) |
 | `-q`, `--quiet` | Minimal output |
 | `-y`, `--yes` | Auto-confirm prompts |
+| `--install-completion [SHELL]` | Install shell completion (bash/zsh/fish). Auto-detects `$SHELL` if no value. |
+| `--show-completion [SHELL]` | Print the shell completion script without installing it. |
 
 ## Container lifecycle
 
