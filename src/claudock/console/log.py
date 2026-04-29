@@ -68,5 +68,14 @@ def raw(msg: str) -> None:
 
 def cancelled(msg: str = "Cancelled.") -> None:
     """Discrete yellow line shown after a Ctrl+C / explicit cancel.
-    No `[!]` prefix, no panel — same UX as pvecli's `print_cancelled`."""
+    No `[!]` prefix, no panel — same UX as pvecli's `print_cancelled`.
+
+    Best-effort wipe of the half-finished prompt line and the `^C` the
+    terminal echoes when the user hits Ctrl+C during a prompt: `\\r`
+    rewinds the cursor, `\\033[K` clears to EOL, then we print the
+    yellow message on a fresh line."""
+    import sys
+    if sys.stdout.isatty():
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
     console.print(f"[warn]{msg}[/]")
