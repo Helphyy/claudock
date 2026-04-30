@@ -819,6 +819,10 @@ def _pick_variant_interactive(cfg: UserConfig, *, allow_all: bool = True) -> str
 
     from claudock.console.selector import select_from_table
     from claudock.console.styles import fmt_size
+    from claudock.utils.image_updates import (
+        check_updates,
+        status_markup as update_status_markup,
+    )
 
     client = get_client()
     local: dict[str, int] = {}
@@ -829,19 +833,29 @@ def _pick_variant_interactive(cfg: UserConfig, *, allow_all: bool = True) -> str
 
     items = ["all", *cfg.images.variants] if allow_all else list(cfg.images.variants)
 
+    refs = [cfg.images.expand(v) for v in cfg.images.variants]
+    updates = check_updates(client, refs)
+
     def render(item: str) -> list[str]:
         if item == "all":
-            return ["all", "[muted]pull every variant[/]", "[muted]-[/]", "[muted]-[/]"]
+            return [
+                "all",
+                "[muted]pull every variant[/]",
+                "[muted]-[/]",
+                "[muted]-[/]",
+                "[muted]-[/]",
+            ]
         full_ref = cfg.images.expand(item)
         size = local.get(full_ref)
         status = "[ok]✓ local[/]" if size is not None else "[muted]not local[/]"
         size_s = fmt_size(size) if size is not None else "[muted]-[/]"
-        return [item, full_ref, status, size_s]
+        update = update_status_markup(updates.get(full_ref, "unknown"))
+        return [item, full_ref, status, size_s, update]
 
     return select_from_table(
         items,
         title="Pick an image to install",
-        columns=["Variant", "Reference", "Status", "Size"],
+        columns=["Variant", "Reference", "Status", "Size", "Update"],
         render_row=render,
         object_label="image",
         auto_single=False,
@@ -930,11 +944,15 @@ def cmd_image_remove(image: str, force: bool = False) -> int:
 
 def cmd_image_list() -> int:
     """Two tables:
-    - Official variants (from config) with their pulled state + size.
+    - Official variants (from config) with their pulled state + size + update status.
     - Other Claudock-tagged images present locally (custom builds).
     """
     from rich.table import Table
     from claudock.console.styles import TABLE_BOX, fmt_size
+    from claudock.utils.image_updates import (
+        check_updates,
+        status_markup as update_status_markup,
+    )
 
     cfg = load_config()
     client = get_client()
@@ -947,6 +965,10 @@ def cmd_image_list() -> int:
         sid = img.short_id
         for t in (img.tags or []):
             local[t] = (size, sid)
+
+    # Pull update status for every official ref (cached 1h, parallel calls)
+    official_refs_list = [cfg.images.expand(v) for v in cfg.images.variants]
+    updates = check_updates(client, official_refs_list)
 
     # --- Official variants table ---
     table = Table(
@@ -961,6 +983,7 @@ def cmd_image_list() -> int:
     table.add_column("Local", justify="center")
     table.add_column("Tag", style="value")
     table.add_column("Size", justify="right")
+    table.add_column("Update", justify="center")
     table.add_column("Reference", style="path", overflow="fold")
     for v in cfg.images.variants:
         full_ref = cfg.images.expand(v)
@@ -975,11 +998,19 @@ def cmd_image_list() -> int:
             match = local.get(cand)
             if match:
                 short_ref = cand
+        update_cell = update_status_markup(updates.get(full_ref, "unknown"))
         if match:
             size, _ = match
-            table.add_row(v, "[ok]✓[/]", short_ref.split(":", 1)[1] if ":" in short_ref else "?", fmt_size(size), full_ref)
+            table.add_row(
+                v,
+                "[ok]✓[/]",
+                short_ref.split(":", 1)[1] if ":" in short_ref else "?",
+                fmt_size(size),
+                update_cell,
+                full_ref,
+            )
         else:
-            table.add_row(v, "[muted]-[/]", "[muted]-[/]", "[muted]-[/]", full_ref)
+            table.add_row(v, "[muted]-[/]", "[muted]-[/]", "[muted]-[/]", update_cell, full_ref)
     console.print(table)
 
     # --- Other claudock-tagged images ---
