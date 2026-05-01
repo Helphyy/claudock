@@ -23,7 +23,13 @@ from claudock.console import (
 )
 from claudock.console.errors import success_panel, warn_panel
 from claudock.console.styles import status_markup, truncate_path
-from claudock.constants import CONFIG_FILE, CONTAINER_CLAUDE_DIR, CONTAINER_LOG_DIR, LOGS_DIR
+from claudock.constants import (
+    CONFIG_FILE,
+    CONTAINER_CLAUDE_DIR,
+    CONTAINER_CLAUDE_JSON,
+    CONTAINER_LOG_DIR,
+    LOGS_DIR,
+)
 from claudock.exceptions import ContainerNotFoundError
 from claudock.model import ClaudockContainer, ContainerConfig
 from claudock.model.container_config import PortMapping, VolumeMount
@@ -69,6 +75,7 @@ class StartOptions:
     yes: bool = False
     log: bool = False
     x11: bool = False
+    clipboard: bool = False
     no_update_fs: bool = False
     vscode: bool = False
     vscode_port: int = 8080
@@ -166,6 +173,8 @@ def _apply_project_config(opts: StartOptions, workspace_host: Path) -> StartOpti
         opts.log = bool(pc.log)
     if not opts.x11 and pc.x11:
         opts.x11 = bool(pc.x11)
+    if not opts.clipboard and pc.clipboard:
+        opts.clipboard = bool(pc.clipboard)
     if not opts.vscode and pc.vscode:
         opts.vscode = bool(pc.vscode)
     if opts.git is None and pc.git:
@@ -229,6 +238,39 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
             extra_volumes_specs.append(f"{xauth}:/root/.Xauthority:ro")
             merged_env.setdefault("XAUTHORITY", "/root/.Xauthority")
 
+    # Clipboard sharing (host → container). Lets Claude Code receive pasted
+    # images/text from the host. Wayland: bind the compositor socket. X11:
+    # piggy-back on the X11 path (which on its own doesn't carry clipboard
+    # without a tool like xclip/xsel; we still mount what's needed).
+    if opts.clipboard:
+        wl_display = os.environ.get("WAYLAND_DISPLAY")
+        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR")
+        wayland_ok = False
+        if wl_display and xdg_runtime:
+            sock = Path(xdg_runtime) / wl_display
+            if sock.exists():
+                # Mount the socket inside the container's runtime dir; root
+                # inside the container uses uid 0, so /run/user/0 fits.
+                extra_volumes_specs.append(f"{sock}:/run/user/0/{wl_display}:rw")
+                merged_env.setdefault("WAYLAND_DISPLAY", wl_display)
+                merged_env.setdefault("XDG_RUNTIME_DIR", "/run/user/0")
+                wayland_ok = True
+        if not wayland_ok:
+            # Fall back to X11. Avoid duplicating the X11 socket spec if --x11
+            # was also passed.
+            x11_spec = "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+            if x11_spec not in extra_volumes_specs:
+                extra_volumes_specs.append(x11_spec)
+            display = os.environ.get("DISPLAY")
+            if display:
+                merged_env.setdefault("DISPLAY", display)
+            xauth = os.environ.get("XAUTHORITY")
+            if xauth and Path(xauth).exists():
+                xauth_spec = f"{xauth}:/root/.Xauthority:ro"
+                if xauth_spec not in extra_volumes_specs:
+                    extra_volumes_specs.append(xauth_spec)
+                merged_env.setdefault("XAUTHORITY", "/root/.Xauthority")
+
     # code-server: localhost-only port mapping at creation time.
     extra_ports_specs = list(opts.ports)
     if opts.vscode:
@@ -270,6 +312,7 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
         workspace_host=workspace_host_for_pc,
         profile_name=profile.name,
         profile_claude_dir=profile.claude_dir,
+        profile_claude_json=profile.claude_json,
         logs_host_dir=logs_host,
         network_mode=opts.network or cfg.network.mode,
         hostname=opts.hostname,
@@ -316,6 +359,16 @@ def cmd_start(name: str | None, opts: StartOptions) -> int:
                 "The host's X11 socket will be mounted into the container.\n"
                 "An app inside can observe/inject events on your X server.\n"
                 "Acceptable for personal dev; do not enable for untrusted code.",
+            )
+        if opts.clipboard:
+            warn_panel(
+                "Clipboard shared with host",
+                "The host's Wayland (or X11 fallback) socket will be exposed\n"
+                "so Claude Code can receive pasted images/text from your host.\n"
+                "The container needs 'wl-clipboard' (Wayland) or 'xclip'/'xsel'\n"
+                "(X11) installed to actually read the clipboard.\n"
+                "Anything inside can also inject input on your session, do not\n"
+                "enable for untrusted code.",
             )
         if opts.docker:
             warn_panel(
@@ -675,6 +728,7 @@ def _run_disposable(name: str, opts: StartOptions, cfg: UserConfig, entrypoint_c
         "--security-opt", "no-new-privileges:true",
         "-v", f"{spec.workspace_host}:/workspace:rw",
         "-v", f"{spec.profile_claude_dir}:{CONTAINER_CLAUDE_DIR}:rw",
+        "-v", f"{spec.profile_claude_json}:{CONTAINER_CLAUDE_JSON}:rw",
         "-v", f"{spec.logs_host_dir}:{CONTAINER_LOG_DIR}:rw",
     ]
     for v in spec.extra_volumes:

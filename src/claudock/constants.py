@@ -27,6 +27,7 @@ DEFAULT_PROFILE_NAME = "default"
 
 CONTAINER_WORKSPACE = "/workspace"
 CONTAINER_CLAUDE_DIR = "/root/.claude"
+CONTAINER_CLAUDE_JSON = "/root/.claude.json"
 CONTAINER_LOG_DIR = "/var/log/claudock-sessions"
 
 LABEL_MANAGED_BY = "claudock.managed-by"

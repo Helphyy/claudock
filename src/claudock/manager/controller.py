@@ -118,6 +118,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Share the host X server (GUI apps inside the container, e.g. headed browsers)",
     )
     p_start.add_argument(
+        "--clipboard", action="store_true",
+        help="Share the host clipboard (Wayland socket, X11 fallback). Lets Claude Code receive pasted images/text from the host. Image needs wl-clipboard or xclip.",
+    )
+    p_start.add_argument(
         "--no-update-fs", action="store_true", dest="no_update_fs",
         help="Skip the chgrp/setgid on /workspace (default: enabled so the host user can rw new files)",
     )
@@ -407,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
                     yes=args.yes,
                     log=args.log,
                     x11=args.x11,
+                    clipboard=args.clipboard,
                     no_update_fs=args.no_update_fs,
                     vscode=args.vscode,
                     vscode_port=args.vscode_port,

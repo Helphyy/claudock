@@ -52,6 +52,13 @@ class Profile:
         return self.path / ".claude"
 
     @property
+    def claude_json(self) -> Path:
+        """Host file that gets bind-mounted at /root/.claude.json inside containers.
+        Holds Claude Code's onboarding state, identity and per-project settings;
+        without persisting it the user re-does the theme picker on every container."""
+        return self.path / ".claude.json"
+
+    @property
     def exists(self) -> bool:
         return self.claude_dir.exists()
 
@@ -81,9 +88,14 @@ class Profile:
         and API keys; without this another local user could read them."""
         import os
         self.claude_dir.mkdir(parents=True, exist_ok=True)
+        # Pre-create .claude.json as a file so docker bind-mounts it as a file
+        # (otherwise docker would create a directory at the mount point).
+        if not self.claude_json.exists():
+            self.claude_json.write_text("{}\n", encoding="utf-8")
         try:
             os.chmod(self.path, 0o700)
             os.chmod(self.claude_dir, 0o700)
+            os.chmod(self.claude_json, 0o600)
         except OSError:
             pass
 

@@ -9,6 +9,7 @@ from typing import Any
 from claudock import __version__
 from claudock.constants import (
     CONTAINER_CLAUDE_DIR,
+    CONTAINER_CLAUDE_JSON,
     CONTAINER_LOG_DIR,
     CONTAINER_PREFIX,
     CONTAINER_WORKSPACE,
@@ -70,6 +71,7 @@ class ContainerConfig:
     workspace_host: Path
     profile_name: str
     profile_claude_dir: Path
+    profile_claude_json: Path
     logs_host_dir: Path
     network_mode: str = "bridge"
     hostname: str | None = None
@@ -97,6 +99,7 @@ class ContainerConfig:
         volumes: dict[str, dict[str, str]] = {
             str(self.workspace_host): {"bind": CONTAINER_WORKSPACE, "mode": "rw"},
             str(self.profile_claude_dir): {"bind": CONTAINER_CLAUDE_DIR, "mode": "rw"},
+            str(self.profile_claude_json): {"bind": CONTAINER_CLAUDE_JSON, "mode": "rw"},
             str(self.logs_host_dir): {"bind": CONTAINER_LOG_DIR, "mode": "rw"},
         }
         for v in self.extra_volumes:

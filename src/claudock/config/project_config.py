@@ -14,6 +14,7 @@ Accepted schema (all keys optional):
       hostname: my-box
       log: false
       x11: false
+      clipboard: false      # share host clipboard (Wayland socket, X11 fallback)
       vscode: false
       docker: false          # mount /var/run/docker.sock (DANGER: root on host)
       git: git@github.com:user/repo.git
@@ -50,6 +51,7 @@ class ProjectConfig:
     hostname: str | None = None
     log: bool | None = None
     x11: bool | None = None
+    clipboard: bool | None = None
     vscode: bool | None = None
     docker: bool | None = None
     git: str | None = None
@@ -71,6 +73,7 @@ class ProjectConfig:
             hostname=defaults.get("hostname"),
             log=defaults.get("log"),
             x11=defaults.get("x11"),
+            clipboard=defaults.get("clipboard"),
             vscode=defaults.get("vscode"),
             docker=defaults.get("docker"),
             git=defaults.get("git"),
