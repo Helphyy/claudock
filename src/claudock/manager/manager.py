@@ -349,6 +349,10 @@ def cmd_start(name: str | None, opts: StartOptions) -> int:
         )
         with status.step("Starting container..."):
             container.start()
+        # Claude writes session files as root with 0600; host (non-root) then
+        # can't read them and the resume picker degrades to bare UUIDs. Relax
+        # read perms so _extract_title can pick up the summary/first prompt.
+        _relax_claude_session_perms(container)
         # Conversation menu (existing container, TTY, no --shell, no -y)
         entrypoint_cmd = _pick_existing_action(container, opts, cfg)
     except ContainerNotFoundError:
@@ -449,6 +453,22 @@ def _git_clone_into_workspace(container: ClaudockContainer, url: str) -> None:
     else:
         out = res.output.decode("utf-8", errors="replace")[:600]
         log.err(f"git clone failed:\n{out}")
+
+
+def _relax_claude_session_perms(container: ClaudockContainer) -> None:
+    """Make Claude's session JSONL files readable by the host user.
+
+    Claude Code writes /root/.claude/projects/<cwd>/<id>.jsonl as root, mode
+    0600. Since the profile is bind-mounted, those files are visible host-side
+    but unreadable to a non-root user, so the resume picker can't extract the
+    summary/first prompt and falls back to displaying the bare UUID. A
+    one-shot `chmod -R o+rX` on the projects/ dir fixes it for past and
+    future sessions (Claude doesn't reset perms on rewrite)."""
+    cmd = "chmod -R o+rX /root/.claude/projects 2>/dev/null; true"
+    try:
+        container.raw.exec_run(["sh", "-c", cmd])
+    except Exception:
+        pass
 
 
 def _update_workspace_perms(container: ClaudockContainer) -> None:
