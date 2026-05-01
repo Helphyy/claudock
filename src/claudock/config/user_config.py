@@ -57,6 +57,11 @@ config:
   # Override per-run with --effort.
   default_effort: max
 
+  # Share the host clipboard (Wayland socket, X11 fallback) on every
+  # `claudock start`. Same effect as passing --clipboard each time.
+  # Image needs wl-clipboard (Wayland) or xclip/xsel (X11).
+  default_clipboard: false
+
 network:
   # Docker network mode (bridge, host, none) (override: --network).
   mode: bridge
@@ -94,6 +99,7 @@ class GeneralConfig:
     default_env: dict[str, str] = field(default_factory=dict)
     auto_check_update: bool = False
     default_effort: str = "max"
+    default_clipboard: bool = False
 
 
 @dataclass
@@ -177,6 +183,7 @@ class UserConfig:
                 default_env=dict(c.get("default_env") or {}),
                 auto_check_update=bool(c.get("auto_check_update", False)),
                 default_effort=str(c.get("default_effort", "max")),
+                default_clipboard=bool(c.get("default_clipboard", False)),
             ),
             network=NetworkConfig(mode=n.get("mode", "bridge")),
             ui=UiConfig(banner=bool(u.get("banner", True))),

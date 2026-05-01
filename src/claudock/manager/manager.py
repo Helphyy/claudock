@@ -206,6 +206,8 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
     opts = _apply_project_config(opts, workspace_host_for_pc)
     if opts.effort is None:
         opts.effort = cfg.config.default_effort
+    if not opts.clipboard and cfg.config.default_clipboard:
+        opts.clipboard = True
 
     profile = get_or_create_profile(opts.profile or cfg.config.default_profile)
     # Merge config defaults with CLI overrides; CLI wins on env conflicts.
