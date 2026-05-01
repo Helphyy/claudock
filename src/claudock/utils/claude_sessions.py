@@ -70,21 +70,41 @@ def _extract_title(file_path: Path) -> str:
     return file_path.stem
 
 
-def list_sessions(profile_claude_dir: Path, container_workspace: str) -> list[ClaudeSession]:
-    """List Claude Code sessions for the given profile + workspace."""
+def list_sessions(
+    profile_claude_dir: Path,
+    container_workspace: str,
+    *,
+    sessions_root: Path | None = None,
+    min_mtime: float | None = None,
+) -> list[ClaudeSession]:
+    """List Claude Code sessions for a container.
+
+    `sessions_root`: if set (per-container projects/ dir bind-mounted at
+    /root/.claude/projects), look there. Otherwise fall back to the profile's
+    projects/ dir (legacy: shared across all containers of the profile).
+
+    `min_mtime`: drop sessions older than this epoch (used as a heuristic to
+    hide pre-existing profile sessions when there is no per-container mount).
+    """
     encoded = encode_workspace_path(container_workspace)
-    project_dir = profile_claude_dir / "projects" / encoded
+    if sessions_root is not None:
+        project_dir = sessions_root / encoded
+    else:
+        project_dir = profile_claude_dir / "projects" / encoded
     if not project_dir.exists():
         return []
     sessions: list[ClaudeSession] = []
     for f in project_dir.glob("*.jsonl"):
         if not f.is_file():
             continue
+        st = f.stat()
+        if min_mtime is not None and st.st_mtime < min_mtime:
+            continue
         sessions.append(
             ClaudeSession(
                 id=f.stem,
                 title=_extract_title(f),
-                mtime=f.stat().st_mtime,
+                mtime=st.st_mtime,
             )
         )
     sessions.sort(key=lambda s: s.mtime, reverse=True)

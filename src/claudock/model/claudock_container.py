@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
 
-from claudock.constants import CONTAINER_PREFIX, LABEL_MANAGED_BY, LABEL_PROFILE
+from claudock.constants import (
+    CONTAINER_PREFIX,
+    CONTAINER_PROJECTS_DIR,
+    LABEL_MANAGED_BY,
+    LABEL_PROFILE,
+)
 from claudock.exceptions import (
     ContainerAlreadyExistsError,
     ContainerNotFoundError,
@@ -61,6 +66,21 @@ class ClaudockContainer:
     def profile(self) -> str:
         labels = self.raw.labels or {}
         return labels.get(LABEL_PROFILE, "?")
+
+    @property
+    def sessions_dir(self) -> str:
+        """Host path bind-mounted at /root/.claude/projects, or '' if the
+        container was created before per-container session isolation existed
+        (in that case sessions live under the profile's projects/ dir)."""
+        for m in self.raw.attrs.get("Mounts", []):
+            if m.get("Destination") == CONTAINER_PROJECTS_DIR:
+                return m.get("Source", "")
+        return ""
+
+    @property
+    def created_at(self) -> str:
+        """ISO8601 timestamp of container creation (Docker's Created field)."""
+        return self.raw.attrs.get("Created", "")
 
     def reload(self) -> None:
         self.raw.reload()

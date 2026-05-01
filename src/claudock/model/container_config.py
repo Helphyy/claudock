@@ -12,6 +12,7 @@ from claudock.constants import (
     CONTAINER_CLAUDE_JSON,
     CONTAINER_LOG_DIR,
     CONTAINER_PREFIX,
+    CONTAINER_PROJECTS_DIR,
     CONTAINER_WORKSPACE,
     LABEL_MANAGED_BY,
     LABEL_NAME,
@@ -72,6 +73,7 @@ class ContainerConfig:
     profile_name: str
     profile_claude_dir: Path
     profile_claude_json: Path
+    sessions_host_dir: Path
     logs_host_dir: Path
     network_mode: str = "bridge"
     hostname: str | None = None
@@ -100,6 +102,9 @@ class ContainerConfig:
             str(self.workspace_host): {"bind": CONTAINER_WORKSPACE, "mode": "rw"},
             str(self.profile_claude_dir): {"bind": CONTAINER_CLAUDE_DIR, "mode": "rw"},
             str(self.profile_claude_json): {"bind": CONTAINER_CLAUDE_JSON, "mode": "rw"},
+            # Per-container sessions overlay so two containers sharing the
+            # same profile don't see each other's resume picker entries.
+            str(self.sessions_host_dir): {"bind": CONTAINER_PROJECTS_DIR, "mode": "rw"},
             str(self.logs_host_dir): {"bind": CONTAINER_LOG_DIR, "mode": "rw"},
         }
         for v in self.extra_volumes:

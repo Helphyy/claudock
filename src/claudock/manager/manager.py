@@ -28,7 +28,9 @@ from claudock.constants import (
     CONTAINER_CLAUDE_DIR,
     CONTAINER_CLAUDE_JSON,
     CONTAINER_LOG_DIR,
+    CONTAINER_PROJECTS_DIR,
     LOGS_DIR,
+    SESSIONS_DIR,
 )
 from claudock.exceptions import ContainerNotFoundError
 from claudock.model import ClaudockContainer, ContainerConfig
@@ -221,6 +223,8 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
             seen.add(cap)
     logs_host = LOGS_DIR / name
     logs_host.mkdir(parents=True, exist_ok=True)
+    sessions_host = SESSIONS_DIR / name
+    sessions_host.mkdir(parents=True, exist_ok=True)
 
     # User-provided volumes: resolve the host part so a `-v ../../etc:/c:ro`
     # surfaces as `/etc:/c:ro` and the user sees what they are actually
@@ -315,6 +319,7 @@ def _build_spec(name: str, opts: StartOptions, cfg: UserConfig) -> ContainerConf
         profile_name=profile.name,
         profile_claude_dir=profile.claude_dir,
         profile_claude_json=profile.claude_json,
+        sessions_host_dir=sessions_host,
         logs_host_dir=logs_host,
         network_mode=opts.network or cfg.network.mode,
         hostname=opts.hostname,
@@ -553,7 +558,34 @@ def _pick_existing_action(container: ClaudockContainer, opts: StartOptions, cfg:
     except Exception:
         return _resolve_entrypoint(opts, cfg)
 
-    sessions = list_sessions(profile.claude_dir, "/workspace")
+    # Per-container sessions (mount at /root/.claude/projects). For containers
+    # created before this mount existed, sessions_dir is empty -> fall back to
+    # the profile's projects/ dir but filter by container creation date so we
+    # at least hide sessions that pre-date this container.
+    sessions_root: Path | None = None
+    min_mtime: float | None = None
+    if container.sessions_dir:
+        sessions_root = Path(container.sessions_dir)
+    else:
+        from datetime import datetime
+        created = container.created_at
+        if created:
+            try:
+                # Docker timestamps end with 'Z' and may carry sub-microsecond
+                # precision; trim it to fit fromisoformat.
+                trimmed = created.rstrip("Z")
+                if "." in trimmed:
+                    head, frac = trimmed.split(".", 1)
+                    trimmed = f"{head}.{frac[:6]}"
+                min_mtime = datetime.fromisoformat(trimmed).timestamp()
+            except ValueError:
+                min_mtime = None
+    sessions = list_sessions(
+        profile.claude_dir,
+        "/workspace",
+        sessions_root=sessions_root,
+        min_mtime=min_mtime,
+    )
     items: list = [_NEW_CONV, *sessions, _SHELL_ACTION]
     shell_label = cfg.config.default_shell
 
@@ -751,6 +783,7 @@ def _run_disposable(name: str, opts: StartOptions, cfg: UserConfig, entrypoint_c
         "-v", f"{spec.workspace_host}:/workspace:rw",
         "-v", f"{spec.profile_claude_dir}:{CONTAINER_CLAUDE_DIR}:rw",
         "-v", f"{spec.profile_claude_json}:{CONTAINER_CLAUDE_JSON}:rw",
+        "-v", f"{spec.sessions_host_dir}:{CONTAINER_PROJECTS_DIR}:rw",
         "-v", f"{spec.logs_host_dir}:{CONTAINER_LOG_DIR}:rw",
     ]
     for v in spec.extra_volumes:
