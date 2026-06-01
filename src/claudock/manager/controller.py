@@ -205,17 +205,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_image_sub = p_image.add_subparsers(
         dest="image_action", metavar="ACTION", required=True, parser_class=ColoredParser,
     )
-    p_image_sub.add_parser("list", help="List Claudock images (official variants + local custom)")
+    p_image_sub.add_parser("list", help="List Claudock images (official + local custom)")
     p_img_install = p_image_sub.add_parser(
         "install",
-        help="Pull a variant by name (minimal/dev/cloud/security/full) or a full image ref",
+        help="Pull the official Claudock image (or any image reference passed explicitly)",
     )
-    p_img_install.add_argument("image", nargs="?", help="Variant name or image ref (default: config image)")
-    p_image_sub.add_parser("install-all", help="Pull every official variant from the registry")
+    p_img_install.add_argument("image", nargs="?", help="Image name or full ref (default: config image)")
+    p_image_sub.add_parser("install-all", help="Alias of `install` (single image since v1.7)")
     p_img_update = p_image_sub.add_parser("update", help="Re-pull an image to refresh its tag")
-    p_img_update.add_argument("image", nargs="?", help="Variant name or image ref (default: config image)")
+    p_img_update.add_argument("image", nargs="?", help="Image name or full ref (default: config image)")
     p_img_remove = p_image_sub.add_parser("remove", help="Remove a local image (`docker rmi`)")
-    p_img_remove.add_argument("image", help="Variant name or image ref")
+    p_img_remove.add_argument("image", help="Image name or full ref")
     p_img_remove.add_argument("-f", "--force", action="store_true", help="Force removal")
     p_img_build = p_image_sub.add_parser("build", help="Build a local Dockerfile and tag it as a Claudock image")
     p_img_build.add_argument("path", help="Build context (folder containing the Dockerfile)")

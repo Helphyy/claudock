@@ -15,10 +15,10 @@ from claudock.constants import (
     CONFIG_FILE,
     CONFIG_ROOT,
     DEFAULT_IMAGE,
+    DEFAULT_IMAGE_NAME,
     DEFAULT_IMAGE_REGISTRY,
     DEFAULT_IMAGE_TAG,
     DEFAULT_PROFILE_NAME,
-    KNOWN_VARIANTS,
     WORKSPACES_DIR,
 )
 
@@ -33,7 +33,8 @@ volumes:
   workspaces_path: {WORKSPACES_DIR}
 
 config:
-  # Default Docker image (override: --image).
+  # Default Docker image (override: --image). Bare name resolves via the
+  # `images:` section below to `<registry>/<name>:<default_tag>`.
   default_image: {DEFAULT_IMAGE}
 
   # Default Claude auth profile (override: --profile).
@@ -71,17 +72,14 @@ ui:
   banner: true
 
 images:
-  # Where the official Claudock images live. The image manager (`claudock
-  # image install`) expands a variant name (e.g. `dev`) into
-  # `<registry>/claudock-<variant>:<default_tag>`. Set `registry: ""` if you
-  # only want to manage local images (no remote pull).
+  # Where the official Claudock image lives. A bare image name (e.g.
+  # `claudock`) resolves to `<registry>/<name>:<default_tag>`. Set
+  # `registry: ""` to manage local images only (no remote pull).
   registry: {DEFAULT_IMAGE_REGISTRY}
   default_tag: {DEFAULT_IMAGE_TAG}
 
-  # Official variants shipped under the registry above. Used by
-  # `claudock image list` and `claudock image install-all`.
-  variants:
-{chr(10).join(f"    - {v}" for v in KNOWN_VARIANTS)}
+  # Official image name (single image since v1.7.0).
+  name: {DEFAULT_IMAGE_NAME}
 """
 
 
@@ -114,23 +112,29 @@ class UiConfig:
 
 @dataclass
 class ImagesConfig:
-    """Where official Claudock images live + which variants are known."""
+    """Where the official Claudock image lives."""
 
     registry: str = DEFAULT_IMAGE_REGISTRY
     default_tag: str = DEFAULT_IMAGE_TAG
-    variants: list[str] = field(default_factory=lambda: list(KNOWN_VARIANTS))
+    name: str = DEFAULT_IMAGE_NAME
+
+    @property
+    def official_ref(self) -> str:
+        """Full reference of the official image."""
+        if self.registry:
+            return f"{self.registry}/{self.name}:{self.default_tag}"
+        return f"{self.name}:{self.default_tag}"
 
     def expand(self, name: str, *, tag: str | None = None) -> str:
-        """Resolve a variant name or partial spec to a full image reference.
+        """Resolve a name to a full image reference.
 
         Rules:
-        - If `name` already contains a registry (`/` before any `:`) or is a
-          local-only ref (no `/` at all but with explicit tag, e.g.
-          `myimage:dev`), return as-is.
-        - If `name` is a known variant (`minimal`, `dev`, ...), expand to
-          `<registry>/claudock-<name>:<tag>` (registry omitted if empty).
-        - If `name` is `claudock-<variant>` (with or without tag), prepend
-          the registry (if any) and apply default tag if missing.
+        - If `name` contains a registry (a `/` before any `:`), return as-is
+          (apply `default_tag` only if no tag at all).
+        - If `name` is the official name (`claudock`, with or without tag),
+          prepend the registry (if any).
+        - Otherwise, assume the user typed a custom local image and only add
+          the default tag if missing.
         """
         target_tag = tag or self.default_tag
 
@@ -138,21 +142,15 @@ class ImagesConfig:
         if "/" in name:
             return name if ":" in name.split("/")[-1] else f"{name}:{target_tag}"
 
-        # `claudock-<variant>[:<tag>]` form
-        if name.startswith("claudock-"):
-            stem, sep, t = name.partition(":")
+        # Official name (with or without tag)
+        stem, sep, t = name.partition(":")
+        if stem == self.name:
             t = t or target_tag
             if self.registry:
                 return f"{self.registry}/{stem}:{t}"
             return f"{stem}:{t}"
 
-        # Bare variant name
-        if name in self.variants:
-            if self.registry:
-                return f"{self.registry}/claudock-{name}:{target_tag}"
-            return f"claudock-{name}:{target_tag}"
-
-        # Otherwise: assume the user knows what they typed (custom image)
+        # Custom local image
         return name if ":" in name else f"{name}:{target_tag}"
 
 
@@ -171,6 +169,7 @@ class UserConfig:
         n = raw.get("network") or {}
         u = raw.get("ui") or {}
         i = raw.get("images") or {}
+        # Legacy v1.6.x keys silently ignored: images.variants, default_variant.
         return cls(
             volumes=VolumesConfig(
                 workspaces_path=Path(v.get("workspaces_path", WORKSPACES_DIR)).expanduser(),
@@ -190,7 +189,7 @@ class UserConfig:
             images=ImagesConfig(
                 registry=str(i.get("registry", DEFAULT_IMAGE_REGISTRY)),
                 default_tag=str(i.get("default_tag", DEFAULT_IMAGE_TAG)),
-                variants=list(i.get("variants") or KNOWN_VARIANTS),
+                name=str(i.get("name", DEFAULT_IMAGE_NAME)),
             ),
         )
 

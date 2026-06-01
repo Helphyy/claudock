@@ -7,7 +7,7 @@ gaps left by the global config. CLI flags still win.
 Accepted schema (all keys optional):
 
     defaults:
-      image: ghcr.io/helphyy/claudock-dev:latest
+      image: ghcr.io/helphyy/claudock:latest
       profile: pro
       network: bridge        # bridge | host | none | <docker-net>
       shell: zsh             # empty = launch claude directly

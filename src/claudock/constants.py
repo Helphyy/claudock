@@ -7,12 +7,13 @@ from pathlib import Path
 APP_NAME = "claudock"
 CONTAINER_PREFIX = "claudock-"
 
-DEFAULT_IMAGE = "full"
+DEFAULT_IMAGE = "claudock"
 
 # Official image catalog (used by `claudock image` for install/update/list).
+# Single image since v1.7.0 (previously: per-variant claudock-{minimal,dev,...}).
 DEFAULT_IMAGE_REGISTRY = "ghcr.io/helphyy"
 DEFAULT_IMAGE_TAG = "latest"
-KNOWN_VARIANTS = ("minimal", "dev", "cloud", "security", "data", "doc", "full")
+DEFAULT_IMAGE_NAME = "claudock"
 
 HOME = Path.home()
 CONFIG_ROOT = HOME / ".claudock"

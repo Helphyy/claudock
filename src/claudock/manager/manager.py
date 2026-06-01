@@ -659,12 +659,6 @@ def _interactive_augment_opts(opts: StartOptions, cfg: UserConfig) -> StartOptio
     Skip what was already passed via flag. When the user just presses Enter,
     fall back on the global config defaults.
     """
-    # 0. Image (variant selector reused from `claudock image install`)
-    if opts.image is None:
-        chosen = _pick_variant_interactive(cfg, allow_all=False)
-        if chosen:
-            opts.image = chosen
-
     # 1. Workspace
     if not opts.use_cwd and not opts.path:
         choice = prompt.ask(
@@ -918,75 +912,12 @@ def _split_repo_tag(image_ref: str) -> tuple[str, str]:
     return head, tail
 
 
-def _pick_variant_interactive(cfg: UserConfig, *, allow_all: bool = True) -> str | None:
-    """Show a table of variants (optionally with an 'all' shortcut) and return
-    the user's choice. Returns None when stdin is not a TTY (caller will fall
-    back to default)."""
-    import sys
-    if not sys.stdin.isatty():
-        return None
-
-    from claudock.console.selector import select_from_table
-    from claudock.console.styles import fmt_size
-    from claudock.utils.image_updates import (
-        check_updates,
-        status_markup as update_status_markup,
-    )
-
-    client = get_client()
-    local: dict[str, int] = {}
-    for img in client.images.list():
-        size = img.attrs.get("Size", 0)
-        for t in (img.tags or []):
-            local[t] = size
-
-    items = ["all", *cfg.images.variants] if allow_all else list(cfg.images.variants)
-
-    refs = [cfg.images.expand(v) for v in cfg.images.variants]
-    updates = check_updates(client, refs)
-
-    def render(item: str) -> list[str]:
-        if item == "all":
-            return [
-                "all",
-                "[muted]pull every variant[/]",
-                "[muted]-[/]",
-                "[muted]-[/]",
-                "[muted]-[/]",
-            ]
-        full_ref = cfg.images.expand(item)
-        size = local.get(full_ref)
-        status = "[ok]✓ local[/]" if size is not None else "[muted]not local[/]"
-        size_s = fmt_size(size) if size is not None else "[muted]-[/]"
-        update = update_status_markup(updates.get(full_ref, "unknown"))
-        return [item, full_ref, status, size_s, update]
-
-    return select_from_table(
-        items,
-        title="Pick an image to install",
-        columns=["Variant", "Reference", "Status", "Size", "Update"],
-        render_row=render,
-        object_label="image",
-        auto_single=False,
-    )
-
-
 def cmd_image_install(image: str | None) -> int:
-    """Pull an image from the registry. Accepts a known variant name
-    (e.g. `dev`), a `claudock-<variant>` shortname, or a full image ref.
-    Without an argument, an interactive selector lists every variant plus
-    an `all` shortcut; non-TTY callers fall back to `config.default_image`."""
+    """Pull the Claudock image from the registry. Without an argument, pulls
+    the official image (`<registry>/<name>:<default_tag>`). With an argument,
+    accepts the official name or any full image reference."""
     cfg = load_config()
-    if image is None:
-        choice = _pick_variant_interactive(cfg)
-        if choice is None:
-            raw = cfg.config.default_image
-        elif choice == "all":
-            return cmd_image_install_all()
-        else:
-            raw = choice
-    else:
-        raw = image
+    raw = image if image is not None else cfg.config.default_image
     target = cfg.images.expand(raw)
     repo, tag = _split_repo_tag(target)
 
@@ -1004,23 +935,9 @@ def cmd_image_install(image: str | None) -> int:
 
 
 def cmd_image_install_all() -> int:
-    """Pull every official variant declared in the config."""
-    cfg = load_config()
-    if not cfg.images.variants:
-        log.info("No variants declared in config.images.variants.")
-        return 0
-    log.info(f"Pulling {len(cfg.images.variants)} variants from [value]{cfg.images.registry or '(local)'}[/]...")
-    failed: list[str] = []
-    for v in cfg.images.variants:
-        log.info(f"--- {v} ---")
-        rc = cmd_image_install(v)
-        if rc != 0:
-            failed.append(v)
-    if failed:
-        log.err(f"Failed: {', '.join(failed)}")
-        return 1
-    log.success(f"All {len(cfg.images.variants)} variants pulled.")
-    return 0
+    """Alias of `cmd_image_install(None)` kept for backwards-compat with the
+    pre-1.7 multi-variant catalog. Pulls the single official image."""
+    return cmd_image_install(None)
 
 
 def cmd_image_update(image: str | None) -> int:
@@ -1053,7 +970,7 @@ def cmd_image_remove(image: str, force: bool = False) -> int:
 
 def cmd_image_list() -> int:
     """Two tables:
-    - Official variants (from config) with their pulled state + size + update status.
+    - Official Claudock image with its pulled state + size + update status.
     - Other Claudock-tagged images present locally (custom builds).
     """
     from rich.table import Table
@@ -1075,59 +992,54 @@ def cmd_image_list() -> int:
         for t in (img.tags or []):
             local[t] = (size, sid)
 
-    # Pull update status for every official ref (cached 1h, parallel calls)
-    official_refs_list = [cfg.images.expand(v) for v in cfg.images.variants]
-    updates = check_updates(client, official_refs_list)
+    official_ref = cfg.images.official_ref
+    updates = check_updates(client, [official_ref])
 
-    # --- Official variants table ---
+    # --- Official image table ---
     table = Table(
-        title="Official Claudock variants",
+        title="Official Claudock image",
         title_style="brand",
         header_style="bold cyan",
         border_style="brand.dim",
         box=TABLE_BOX,
         pad_edge=True,
     )
-    table.add_column("Variant", style="name")
+    table.add_column("Name", style="name")
     table.add_column("Local", justify="center")
     table.add_column("Tag", style="value")
     table.add_column("Size", justify="right")
     table.add_column("Update", justify="center")
     table.add_column("Reference", style="path", overflow="fold")
-    for v in cfg.images.variants:
-        full_ref = cfg.images.expand(v)
-        # Match either the full registry ref or a shortname
-        short_ref = f"claudock-{v}:{cfg.images.default_tag}"
-        match = local.get(full_ref) or local.get(short_ref)
-        # Also try `claudock-<v>:dev` (locally built)
+    short_ref = f"{cfg.images.name}:{cfg.images.default_tag}"
+    match = local.get(official_ref) or local.get(short_ref)
+    if not match:
         for cand_tag in ("dev", cfg.images.default_tag, "latest"):
-            if match:
-                break
-            cand = f"claudock-{v}:{cand_tag}"
+            cand = f"{cfg.images.name}:{cand_tag}"
             match = local.get(cand)
             if match:
                 short_ref = cand
-        update_cell = update_status_markup(updates.get(full_ref, "unknown"))
-        if match:
-            size, _ = match
-            table.add_row(
-                v,
-                "[ok]✓[/]",
-                short_ref.split(":", 1)[1] if ":" in short_ref else "?",
-                fmt_size(size),
-                update_cell,
-                full_ref,
-            )
-        else:
-            table.add_row(v, "[muted]-[/]", "[muted]-[/]", "[muted]-[/]", update_cell, full_ref)
+                break
+    update_cell = update_status_markup(updates.get(official_ref, "unknown"))
+    if match:
+        size, _ = match
+        table.add_row(
+            cfg.images.name,
+            "[ok]✓[/]",
+            short_ref.split(":", 1)[1] if ":" in short_ref else "?",
+            fmt_size(size),
+            update_cell,
+            official_ref,
+        )
+    else:
+        table.add_row(
+            cfg.images.name, "[muted]-[/]", "[muted]-[/]", "[muted]-[/]", update_cell, official_ref,
+        )
     console.print(table)
 
     # --- Other claudock-tagged images ---
-    official_refs = set()
-    for v in cfg.images.variants:
-        official_refs.add(cfg.images.expand(v))
-        for tag_variant in ("dev", cfg.images.default_tag, "latest"):
-            official_refs.add(f"claudock-{v}:{tag_variant}")
+    official_refs = {official_ref}
+    for tag_variant in ("dev", cfg.images.default_tag, "latest"):
+        official_refs.add(f"{cfg.images.name}:{tag_variant}")
     others: list[tuple[str, int, str]] = []
     for tag, (size, sid) in local.items():
         short = tag.rsplit("/", 1)[-1]

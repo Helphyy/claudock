@@ -92,7 +92,7 @@ _HINTS: dict[type[Exception], tuple[str, str | None]] = {
     ),
     ImageNotFoundError: (
         "Image not found",
-        "Build the image: `cd claudock-images && make build`, or pull it from the registry once published.",
+        "Pull it: `claudock image install`. Or build locally: `cd claudock-images && make build`.",
     ),
     InvalidProfileNameError: (
         "Invalid profile name",
